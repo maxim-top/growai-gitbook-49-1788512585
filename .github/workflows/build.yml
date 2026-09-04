@@ -1,0 +1,110 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-lock
+      cancel-in-progress: true
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: 'true'
+
+    - run: git tag --list
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '10'
+    
+    - name: Restore GitBook CLI
+      uses: actions/cache@v4
+      with:
+        path: .gitbook-cli
+        key: growai-gitbook-cli-${{ runner.os }}-node10-2.3.2
+
+    - name: Restore GitBook dependencies
+      id: gitbook-dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gitbook
+          node_modules
+        key: growai-gitbook-${{ runner.os }}-${{ hashFiles('book.json') }}
+
+    - name: Prepare GitBook CLI
+      run: |
+        echo "${{ github.workspace }}/.gitbook-cli/node_modules/.bin" >> "$GITHUB_PATH"
+        if [[ ! -x .gitbook-cli/node_modules/.bin/gitbook ]]; then
+          npm install --prefix .gitbook-cli gitbook-cli@2.3.2 --no-audit --no-fund
+        fi
+
+    - name: Install GitBook Deps
+      if: steps.gitbook-dependencies.outputs.cache-hit != 'true'
+      run: gitbook install
+
+    - name: Build GitBook
+      run: |
+        cd ${{ github.workspace }}
+        mkdir -p ../cache
+        gitbook build # --log=debug --debug
+
+    - name: Format output
+      run: |
+        cd ${{ github.workspace }}
+        make refine
+
+    - name: create book.tar.gz
+      run: tar czf book.tar.gz _book
+
+    - name: Determine last tag
+      id: last_tag_commit
+      run: |
+        set -x
+        # 获取最后一个标签
+        LAST_TAG=$(git describe --tags --abbrev=0 || echo '1.0.0')
+        
+        # 获取最后一个提交的哈希
+        COMMIT_HASH=$(git rev-parse HEAD)
+        COMMIT_HASH_SHORT=$(git rev-parse --short HEAD)
+
+        # 解析主版本号
+        MAJOR_VERSION=$(echo $LAST_TAG | cut -d. -f1)
+        
+        # 解析次版本号
+        MINOR_VERSION=$(echo $LAST_TAG | cut -d. -f2)
+        
+        # 解析修订号
+        PATCH_VERSION=$(echo $LAST_TAG | cut -d. -f3)
+        
+        # 增加修订号
+        NEW_PATCH_VERSION=$((PATCH_VERSION + 1))
+        
+        # 创建新标签
+        NEW_TAG="${MAJOR_VERSION}.${MINOR_VERSION}.${NEW_PATCH_VERSION}.${COMMIT_HASH_SHORT}"
+        echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_ENV
+        echo "COMMIT_HASH=${COMMIT_HASH}" >> $GITHUB_ENV
+
+    - name: Create Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "book.tar.gz"
+        tag: ${{ env.NEW_TAG }}
+        commit: ${{ env.COMMIT_HASH }}
+
+    - name: Call grow ai to deploy
+      run: |
+        curl -X POST 'https://connector.lanyingim.com/grow_ai/release_finish' \
+        -H "Content-Type: application/json" \
+        -d '{"status": "ok", "repository": "${{ github.repository }}", "release": "${{ env.NEW_TAG }}"}'
