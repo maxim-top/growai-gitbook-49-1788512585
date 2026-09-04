@@ -1,5 +1,5 @@
 {
-    "title": "蓝莺 IM - 打造新一代智能应用，使用蓝莺ChatAI SDK",
+    "title": "测试网站描述",
     "description": "API文档及文章分享",
     "author": "jinhai",
     "output.name": "site",
@@ -58,7 +58,7 @@
             "edit": true
         },
         "tbfed-pagefooter": {
-            "copyright": "© 2019-2026 美信拓扑 | <a href='/' target='_blank' style='text-decoration:none!important;'>官网</a> | <a href='/sitemap.xml' style='text-decoration:none!important;' target='_blank'>网站地图</a>",
+            "copyright": "© 2019-2026 测试 | <a href='/' target='_blank' style='text-decoration:none!important;'>官网</a> | <a href='/sitemap.xml' style='text-decoration:none!important;' target='_blank'>网站地图</a>",
             "modify_label": "该文件修订时间：",
             "modify_format": "YYYY-MM-DD HH:mm:ss"
         },
